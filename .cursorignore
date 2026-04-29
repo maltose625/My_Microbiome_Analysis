@@ -1,0 +1,15 @@
+# 忽略原始测序数据
+01_RawData/
+
+# 忽略分析结果和报告
+03_Results/
+
+# 忽略未来庞大的数据库
+04_Databases/
+
+# 忽略特定后缀的大文件
+*.fastq
+*.fastq.gz
+*.fasta
+*.bam
+*.sam

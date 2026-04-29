@@ -1,0 +1,9 @@
+# 忽略所有大数据文件
+*.sra
+*.fastq.gz
+*.fq.gz
+*.tmp
+*.log
+*.aria2
+# 忽略临时文件夹
+sra_temp/

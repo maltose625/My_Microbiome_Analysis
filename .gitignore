@@ -1,9 +1,25 @@
-# 忽略所有大数据文件
+# 1. 忽略所有测序原始文件和中间大文件
 *.sra
+*.fastq
+*.fq
 *.fastq.gz
 *.fq.gz
+*.bam
+*.sam
+*.ht2
+*.fa
+*.fasta
+*.gtf
+*.gz
+
+# 2. 忽略临时文件和日志
 *.tmp
 *.log
 *.aria2
-# 忽略临时文件夹
 sra_temp/
+
+# 3. 核心：忽略所有存放数据的全量子目录 (注意路径后的斜杠)
+01_RawData/
+03_Results/
+04_Databases/
+Databases/

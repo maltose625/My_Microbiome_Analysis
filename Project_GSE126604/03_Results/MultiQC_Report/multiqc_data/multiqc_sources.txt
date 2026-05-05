@@ -1,7 +1,0 @@
-Module	Section	Sample Name	Source
-fastp	all_sections	SRR8581315	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581315_fastp.json
-fastp	all_sections	SRR8581316	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581316_fastp.json
-fastp	all_sections	SRR8581317	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581317_fastp.json
-fastp	all_sections	SRR8581318	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581318_fastp.json
-fastp	all_sections	SRR8581319	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581319_fastp.json
-fastp	all_sections	SRR8581320	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/SRR8581320_fastp.json

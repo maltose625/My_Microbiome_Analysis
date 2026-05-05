@@ -1,0 +1,15 @@
+Status	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581315_sorted.bam	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581316_sorted.bam	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581317_sorted.bam	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581318_sorted.bam	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581319_sorted.bam	/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment/SRR8581320_sorted.bam
+Assigned	31119393	27538429	31853358	28126641	29715958	27196670
+Unassigned_Unmapped	1058532	945219	1103247	919403	957879	833868
+Unassigned_Read_Type	0	0	0	0	0	0
+Unassigned_Singleton	0	0	0	0	0	0
+Unassigned_MappingQuality	0	0	0	0	0	0
+Unassigned_Chimera	0	0	0	0	0	0
+Unassigned_FragmentLength	0	0	0	0	0	0
+Unassigned_Duplicate	0	0	0	0	0	0
+Unassigned_MultiMapping	14380987	11661355	10729816	13247525	12221281	9649485
+Unassigned_Secondary	0	0	0	0	0	0
+Unassigned_NonSplit	0	0	0	0	0	0
+Unassigned_NoFeatures	2691686	2643049	3808527	3848013	3775146	3463482
+Unassigned_Overlapping_Length	0	0	0	0	0	0
+Unassigned_Ambiguity	1605084	1511837	1699818	1423998	1488458	1353194

@@ -32,6 +32,10 @@ source ~/.bashrc # 刷新系统配置出现base
 cp -r 00_Template Project_数据集 # 新的数据集标准化操作
 free -h         # 查看物理内存
 htop            # 目前所用CPU、内存量 sudo apt install htop
+head/tail       # 用于快速查看大文件的前几行或后几行。如 head -n 10 file.gtf，用来确认文件格式有没有问题，而不必把整个文件加载到内存
+grep            # 用于精准提取包含特定字符的行。如从注释文件里提取“外显子”的信息：grep "exon" reference.gtf
+awk             # Linux 里最强大的列提取和矩阵处理语言。如提取一个矩阵的第 1 列和第 5 列：awk '{print $1, $5}' matrix.txt
+
 ```
 
 ### 2. 数据窥探命令
@@ -65,8 +69,8 @@ conda activate kingfisher
 
 # 检查是否有直接下载的链接（终端运行）
 # 1、确定存在可以直接下载的链接
-在 02_Scripts 目录下新建一个文本文件，叫 ena_links.txt， 把链接粘贴进去，保存。
-终端运行 bash 02_fetch_raw_data.sh -m direct -l ena_link.txt
+# 在 02_Scripts 目录下新建一个文本文件，叫 ena_links.txt， 把链接粘贴进去，保存。
+# 终端运行 bash 02_fetch_raw_data.sh -m direct -l ena_link.txt
 # 2、不确定是否有现成的压缩包，手中只有SRR编号
 在 02_Scripts 目录下新建一个文本文件，叫 srr_list.txt，把编号每行一个粘贴进去，保存。
 终端运行 bash 02_fetch_raw_data.sh -m kingfisher -l srr-list.txt
@@ -95,30 +99,28 @@ RAW_DIR="$WORK_DIR/../01_RawData"
 # /..：代表上一级目录。
 # /01_RawData：进入上一级目录下的这个文件夹。
 
+1. 原始数据质控与去接头 (fastp)
+应用场景：上游分析第一步，拿到双端 .fastq.gz 数据后，切除机器接头并过滤低质量序列。
+核心代码模板：
+fastp \
+  --in1 "$RAW_DIR/${i}_1.fastq.gz" \
+  --in2 "$RAW_DIR/${i}_2.fastq.gz" \
+  --out1 "$QC_DIR/${i}_clean_1.fq.gz" \
+  --out2 "$QC_DIR/${i}_clean_2.fq.gz" \
+  --json "$QC_DIR/${i}_fastp.json" \
+  --html "$QC_DIR/${i}_fastp.html" \
+  --thread 4 \
+  --detect_adapter_for_pe
+核心参数释义:
+--thread 4：调用 4 个 CPU 线程加速
+--detect_adapter_for_pe：双端测序自动检测接头（直接套用 nf-core 大牛参数，免去手动输入接头序列的麻烦）。
+避坑与报错记录 (Bug Ledger)
+Linux 里变量赋值的等号两边绝对不能有空格！（错误：DIR = "x"，正确：DIR="x"）。
+syntax error near unexpected token ')'：不要只盯报错的那一行，上一行多打了一个反括号 ) 或引号 "。
 
-# 2. 循环处理每一个样本
-for i in "${SAMPLES[@]}"; do # “对于 (for) 数组 SAMPLES 里的 每一个 ([@]) 成员，请暂时把它叫作 i，然后 开始执行 (do) 以下操作……”
-    echo "========================================"
-    echo "正在处理样本: $i"
-    echo "========================================"
-
-    # 注意：下载下来的文件名是 SRRXXXX_1.fastq.gz 的格式
-    # 如果你的文件名没有 .gz 后缀，请把下面代码里的 .gz 删掉
-    fastp \
-        --in1 "$RAW_DIR/${i}_1.fastq.gz" \
-        --in2 "$RAW_DIR/${i}_2.fastq.gz" \
-        --out1 "$QC_DIR/${i}_clean_1.fq.gz" \
-        --out2 "$QC_DIR/${i}_clean_2.fq.gz" \
-        --json "$QC_DIR/${i}_fastp.json" \
-        --html "$QC_DIR/${i}_fastp.html" \
-        --thread 4 \
-        --detect_adapter_for_pe
-done
-```
 ### 合并质控报告
 ```bash
 multiqc /mnt/d/A/WSL_Microbiome_Project/03_Results -o /mnt/d/A/WSL_Microbiome_Project/03_Results/MultiQC_Report
-
 ```
 
 
@@ -153,15 +155,16 @@ dds <- DESeq(dds)
 
 # 提取 HFD 组对比 WT 组的差异结果
 res <- results(dds, contrast=c("condition", "HFD", "WT"))
+# contrast = c("因子名称", "分子组（Numerator）", "分母组（Denominator）")
+# 第二个元素（Treatment）：被比较组（Numerator），对应 log2FoldChange 的正方向。
+# 第三个元素（Control）：参考组/对照（Denominator）。
 
 # 保存输出到本地
 write.csv(res, "DESeq2_results.csv")
 ```
-
 ### 2. ggplot2 绘制高水平火山图
 ```R
 library(ggplot2)
-
 # 读取差异分析结果
 res_data <- read.csv("DESeq2_results.csv")
 
@@ -229,8 +232,8 @@ git status
 git add .
 # 4. 提交更改，打上规范的工业级 Commit 标签
 git commit -m "feat(QC): 完成全自动下载与 fastp 双端质控流水线构建"
-# 5. 推送到远端 GitHub 仓库 (假设你的默认分支是 main 或 master)
-git push origin main
+# 5. 推送到远端 GitHub 仓库 
+git push origin master
 ```
 
 

@@ -1,42 +1,54 @@
 #!/usr/bin/env bash
-# =============================================================================
-# 脚本名称：alignment.sh
-# 功能描述：进行转录组全基因组比对
-# =============================================================================
+# =================================================================
+# 脚本名称: 04_alignment.sh (WSL2 极限稳定版)
+# 核心策略: Linux 原生索引 + 内存映射(--mm) + 物理提前解压
+# =================================================================
 
 set -euo pipefail
 shopt -s nullglob
 
-echo "================================================="
-echo "🚀 启动 HISAT2 转录组全基因组比对流水线"
-echo "================================================="
+# --- 路径定义 ---
+# 索引路径：必须指向 Linux 内部目录，否则 --mm 会报错
+INDEX="$HOME/Databases/GRCm39/GRCm39_hisat2"
 
-# 1. 定义绝对路径
-# 数据库索引前缀 (注意：只要写到 GRCm39_hisat2 即可，绝对不能加 .ht2 后缀！)
-INDEX="/mnt/d/A/WSL_Microbiome_Project/Databases/Mus_musculus/GRCm39/GRCm39_hisat2"
-
-# 输入：质控后的干净数据目录
+# 数据与结果：依然坚守在 D 盘原位
 INPUT_DIR="/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results"
-
-# 输出：在结果目录下新建一个专门存放比对文件的子文件夹
 OUT_DIR="/mnt/d/A/WSL_Microbiome_Project/Project_GSE126604/03_Results/02_Alignment"
-mkdir -p ${OUT_DIR}
+mkdir -p "${OUT_DIR}"
 
-
-# 2. 我们先拿其中一个样本 (SRR8581315) 来进行单机实战测试
-# 铁律：在跑通之前，永远不要直接写大循环，避免批量报错！
 SAMPLE="SRR8581315"
-echo "正在处理测试样本: ${SAMPLE} ..."
 
+echo "================================================="
+echo "🧬 正在处理样本: ${SAMPLE}"
+echo "================================================="
 
-# 3. 核心比对命令
-# -p 6 : 给你留 2 个核心保命，坚决防止 Windows 白屏假死！
-# --summary-file : 输出极其重要的比对率报告（后面写文章要用）
-hisat2 -p 6 \
-    -x ${INDEX} \
-    -1 ${INPUT_DIR}/${SAMPLE}_clean_1.fq.gz \
-    -2 ${INPUT_DIR}/${SAMPLE}_clean_2.fq.gz \
-    -S ${OUT_DIR}/${SAMPLE}.sam \
-    --summary-file ${OUT_DIR}/${SAMPLE}_summary.txt
+# 0. 系统级准备
+# 尝试释放 Linux 页面缓存，确保有最充裕的物理内存起步
+echo "🧹 正在清理 Linux 系统内存缓存..."
+sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
 
-echo "✅ 样本 ${SAMPLE} 比对完成！快去看看结果吧！"
+# 1. 物理提前解压 (防止 HISAT2 内部解压导致的内存泄漏)
+echo "📦 步骤 1/3: 正在从 D 盘物理解压测序数据..."
+rm -f "${INPUT_DIR}/${SAMPLE}_temp_*.fq" # 清理残留
+gunzip -c "${INPUT_DIR}/${SAMPLE}_clean_1.fq.gz" > "${INPUT_DIR}/${SAMPLE}_temp_1.fq"
+gunzip -c "${INPUT_DIR}/${SAMPLE}_clean_2.fq.gz" > "${INPUT_DIR}/${SAMPLE}_temp_2.fq"
+
+# 2. 核心比对与排序
+# -p 2: 使用 2 个线程，兼顾速度与稳定性
+# --mm: 开启内存映射，将庞大的索引按需调入内存，这是 24GB 机器不崩溃的关键
+# 🧬 步骤 2/3: 启动 HISAT2 (撕掉限制，32GB Swap 硬刚模式)
+hisat2 -p 2 \
+    -x "${INDEX}" \
+    -1 "${INPUT_DIR}/${SAMPLE}_temp_1.fq" \
+    -2 "${INPUT_DIR}/${SAMPLE}_temp_2.fq" \
+    --summary-file "${OUT_DIR}/${SAMPLE}_summary.txt" \
+    | samtools sort -@ 2 -m 1G \
+      -T "${OUT_DIR}/${SAMPLE}_temp_sort" \
+      -o "${OUT_DIR}/${SAMPLE}_sorted.bam"
+
+# 3. 扫尾工作
+echo "🧹 步骤 3/3: 清理临时文本，释放磁盘空间..."
+rm -f "${INPUT_DIR}/${SAMPLE}_temp_1.fq"
+rm -f "${INPUT_DIR}/${SAMPLE}_temp_2.fq"
+
+echo "✅ [SUCCESS] 样本 ${SAMPLE} 比对任务圆满完成！"

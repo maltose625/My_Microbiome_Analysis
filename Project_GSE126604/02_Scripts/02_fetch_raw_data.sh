@@ -2,10 +2,6 @@
 # =============================================================================
 # 脚本名称：run_pipeline.sh
 # 功能描述：统一测序数据处理流水线 (数据下载 -> fastp质控)
-# 使用示例：
-#   全流程: bash run_pipeline.sh -s all -t PE -m kingfisher -l srr_list.txt
-#   仅下载: bash run_pipeline.sh -s fetch -t PE -m kingfisher -l srr_list.txt
-#   仅质控: bash run_pipeline.sh -s qc
 # =============================================================================
 
 set -euo pipefail

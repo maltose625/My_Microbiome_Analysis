@@ -20,6 +20,5 @@ sra_temp/
 
 # 3. 核心：忽略所有存放数据的全量子目录 (注意路径后的斜杠)
 01_RawData/
-03_Results/
 04_Databases/
 Databases/

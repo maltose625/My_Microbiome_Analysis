@@ -136,57 +136,140 @@ nohup ./download_data.sh > download.log 2>&1 &
 
 
 
----
+```Bash
 ## 📊 二、 下游核心分析与绘图 (R 语言)
-### 1. DESeq2 差异表达分析
+模块一：DESeq2 差异基因分析（找不同）
+🎯 模块目标：比较两个组别（如 Treatment vs Control），找出具有统计学显著差异的基因。
+
+📥 核心输入：
+count_matrix：原始（未标准化） 的整数计数矩阵（行是基因，列是样本）。
+group_info：样本分组信息表（行是样本，且顺序必须与矩阵列名完全一致）。
+
+📤 核心输出：包含 log2FoldChange 和 padj（校正后P值）的差异基因表格。
+
+⚠️ 避坑：对照组（Control）必须被强制设为参考水平（Reference level），否则上调/下调的结果会完全反过来！
+🧠 必须记住的骨架代码：
+
 ```R
-# 加载依赖包
-library(DESeq2)
-
-# 读取表达矩阵与样本分组信息 (假设第一列是基因名)
-count_data <- read.csv("count_matrix.csv", row.names = 1)
-col_data <- read.csv("sample_info.csv", row.names = 1)
-
-# 构建 DESeq2 核心对象
-dds <- DESeqDataSetFromMatrix(countData = count_data, 
-                              colData = col_data, 
-                              design = ~ condition)
+# 1. 指定对照组（极其重要）
+group_info$Condition <- relevel(group_info$Condition, ref = "Control")
+# 2. 构建 DESeq2 数据对象
+dds <- DESeqDataSetFromMatrix(countData = count_matrix, colData = group_info, design = ~ Condition)
+# 3. 运行核心算法（内部包含标准化和负二项分布检验）
 dds <- DESeq(dds)
+# 4. 提取对比结果
+res <- results(dds, contrast = c("Condition", "Treatment", "Control"))
 
-# 提取 HFD 组对比 WT 组的差异结果
-res <- results(dds, contrast=c("condition", "HFD", "WT"))
-# contrast = c("因子名称", "分子组（Numerator）", "分母组（Denominator）")
-# 第二个元素（Treatment）：被比较组（Numerator），对应 log2FoldChange 的正方向。
-# 第三个元素（Control）：参考组/对照（Denominator）。
 
-# 保存输出到本地
-write.csv(res, "DESeq2_results.csv")
-```
-### 2. ggplot2 绘制高水平火山图
+模块二：数据可视化（画火山图与热图）
+🎯 模块目标：将枯燥的差异基因表格转化为 SCI 级别的直观图表。
+📥 核心输入：
+火山图：DESeq2 输出的带有打好标签（Up/Down）的 res_df。
+热图：经过 vst() 标准化转换的表达矩阵（不能用原始 Counts 画热图！）。
+📤 核心输出：直观展示差异倍数和 P 值的散点图（火山图），以及展示样本聚类情况的方块图（热图）。
+🧠 代码：
 ```R
-library(ggplot2)
-# 读取差异分析结果
-res_data <- read.csv("DESeq2_results.csv")
+# --- 火山图 (ggplot2) ---
+ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj), color = Significance)) +
+  geom_point() +  # 画散点
+  geom_vline(xintercept = c(-0.58, 0.58)) + # 画垂直阈值线
+  geom_hline(yintercept = -log10(0.05))     # 画水平阈值线
+# --- 热图 (pheatmap) ---
+vsd <- vst(dds, blind = FALSE)  # 必须先标准化！
+pheatmap(assay(vsd)[top_genes, ], cluster_rows = TRUE, annotation_col = group_info)
 
-# 设定阈值打标签 (P值<0.05 且 |log2FC|>1)
-res_data$Significance <- "Not Significant"
-res_data$Significance[res_data$padj < 0.05 & res_data$log2FoldChange > 1] <- "Up"
-res_data$Significance[res_data$padj < 0.05 & res_data$log2FoldChange < -1] <- "Down"
 
-# 绘制散点图
-ggplot(data = res_data, aes(x = log2FoldChange, y = -log10(padj), color = Significance)) +
-  geom_point(alpha = 0.8, size = 1.5) +  
-  scale_color_manual(values = c("Up" = "#d73027", "Down" = "#4575b4", "Not Significant" = "grey")) + 
-  theme_minimal() + 
-  labs(title = "Volcano Plot: HFD vs WT", x = "Log2 Fold Change", y = "-Log10(P-value)") +
-  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") + 
-  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black")
+模块三：功能富集分析（讲生物学故事）
+🎯 模块目标：把找出来的一堆基因名字，翻译成它们参与了什么生命活动（GO）或疾病代谢通路（KEGG）。
+📥 核心输入：显著差异基因的名称列表（一维向量）。
+📤 核心输出：富集气泡图（Dotplot）和柱状图（Barplot）。
+⚠️ 致命避坑：KEGG 极其“死板”，它绝大多数时候不认识英文缩写（Symbol，如 COX6B1），必须先用代码将其强制转换为纯数字的“身份证号”（Entrez ID）。
+🧠 必须记住的骨架代码：
+```R
+# 1. GO 富集分析（直接用 Symbol）
+ego <- enrichGO(gene = sig_genes, OrgDb = org.Mm.eg.db, keyType = 'SYMBOL', ont = "ALL")
+dotplot(ego) # 画气泡图
+
+# 2. KEGG 富集分析（必须先转换 Entrez ID）
+kk <- enrichKEGG(gene = gene_entrez, organism = 'mmu') # mmu代表小鼠，hsa代表人类
+barplot(kk)  # 画柱状图
+
+模块四:PPI 蛋白互作网络分析
+🎯 模块目标：基因不是孤立工作的。这个模块旨在探索差异基因在蛋白质层面的物理互作和逻辑联系，从成百上千个散沙般的基因中，找出处于网络最中心、牵一发而动全身的核心枢纽基因（Hub Genes）。
+📥 核心输入：DESeq2 筛选出的显著差异基因列表（通常不需要全放，最好按 P 值或 Log2FC 排序，取前 200 - 500 个，否则图会变成毫无意义的“黑毛线球”）。
+📤 核心输出：PPI 网络图，以及基于节点连接度（Degree）排名的 Top 10 Hub 基因列表（如你在 LASSO 之前输入的 Cox4i1, Ndufs8 等）。
+⚠️ 致命避坑：
+不要迷信“全代码化”：虽然 R 语言有 STRINGdb 或 igraph 包可以画网络图，但在真实的生信工业界，大家极少用 R 去做 PPI 的图。因为 R 画网络图极其痛苦且丑陋。业界金标准是：R 语言导出列表 -> STRING 网站算互作 -> Cytoscape 软件画图与算权重。 你代码里保留的“人工干预”步骤，说明你走的路线非常职业！
+
+物种背景墙：在 STRING 数据库里，极其容易手滑选成人类（Homo sapiens），请务必再三确认为小鼠（Mus musculus）。
+
+🧠 必须记住的骨架代码与流转流程：
+
+对于 PPI 分析，你的“代码字典”里应该记录的是一半 R 代码，一半软件操作流程：
+
+```R
+# ========================================================
+# 第一阶段：R 语言负责“准备食材”（提取差异基因）
+# ========================================================
+# 1. 提取符合条件的显著差异基因的名字
+ppi_genes <- res_df %>% 
+  filter(Significance != "Not Significant") %>% 
+  pull(Symbol)
+# 2. 导出为纯文本列表，方便去网站复制粘贴
+write.table(ppi_genes, file = "PPI_input_genes.txt", 
+            row.names = FALSE, col.names = FALSE, quote = FALSE)
+# ========================================================
+# 第二阶段：脱离 R 语言的行业标准流转步骤 (STRING + Cytoscape)
+# ========================================================
+# 1. 登录 STRING 网站 (Search -> Multiple Proteins)。
+# 2. 粘贴 ppi_genes 列表，物种选 Mus musculus。
+# 3. 核心设置：设置 Confidence Score (通常大于 0.4 或 0.7)，必须隐藏无连接的游离节点 (Hide disconnected nodes in the network)。
+# 4. 导出表格：Export -> "string_interactions.tsv"。
+# 5. 导入 Cytoscape 软件，进行美化排版。
+# 6. 使用 CytoHubba 插件，算法选择 Degree (连通度)，计算出排名前 10 的 Hub 基因。
+# 7. 拿到这 10 个基因的名字，回填到接下来的 LASSO 降维 R 代码中！
+
+模块五：LASSO 回归特征筛选（找核心 Biomarker）
+🎯 模块目标：面对成千上万个差异基因，利用机器学习降维，剔除冗余基因，锁定最具临床诊断价值的极少数核心基因（Hub Genes）。
+📥 核心输入：
+  x：纯数值类型的表达矩阵（注意：在 glmnet 中，行必须是样本，列必须是基因，需要用 t() 转置）。
+  y：临床表型结果（如：0 代表低风险，1 代表高风险）。
+📤 核心输出：非零系数的基因列表（通常是个位数）。
+🧠 代码：
+```R
+# 1. 运行 LASSO 交叉验证 (alpha=1代表LASSO，0代表Ridge)
+cv_fit <- cv.glmnet(x, y, family = "binomial", alpha = 1)
+# 2. 提取临床泛化能力更强的保守模型系数 (lambda.1se)
+lasso_model <- glmnet(x, y, family = "binomial", alpha = 1, lambda = cv_fit$lambda.1se)
+# 3. 提取最终挑中的非零特征基因
+coef(lasso_model)
+
+
+模块六：临床模型评估（证明 Biomarker 真的有用）
+🎯 模块目标：用上一步挑出的几个核心基因构建诊断公式，并多维度向临床医生证明这个公式的准确性和实用性。
+📥 核心输入：包含样本风险标签（Risk）和所选 Hub 基因表达量的 Dataframe。
+📤 核心输出：三大护法图（ROC曲线看准确度、Nomogram看临床直观概率、DCA看临床真实获益）。
+⚠️ 致命避坑：把基因塞进 Logistic 回归前，强烈建议先用 scale() 对基因表达量进行标准化，否则表达量绝对值巨大的基因会错误地霸占权重。
+🧠 代码：
+```R
+# 1. 构建 Logistic 回归模型 (lrm 或 glm)
+f <- lrm(Risk ~ COX6B1 + NDUFS8 + NDUFA5, data = model_data)
+
+# 2. 预测概率并画 ROC 曲线 (pROC 包)
+pred_prob <- predict(f, type = "fitted")
+roc_obj <- roc(model_data$Risk, pred_prob)
+plot(roc_obj) # AUC越接近1越好
+
+# 3. 画临床常用的列线图 Nomogram (rms 包)
+nom <- nomogram(f, fun = plogis)
+plot(nom)
+
+# 4. 临床决策曲线 DCA (dcurves 包)
+dca_fit <- dca(Risk ~ pred_prob, data = model_data)
+plot(dca_fit)
 ```
-
----
 
 ## 三、 数据清洗辅助 (Python)
-
 ### 1. Pandas 批量合并文件模板
 ```python
 import pandas as pd
@@ -212,9 +295,7 @@ final_matrix.to_csv("combined_count_matrix.csv", index=False)
 ```
 
 ---
-
 ## 📦 四、 Git 与 GitHub (作品集管理)
-
 ### 1. 代码版本控制基础指令
 ```bash
 git init                           # 1. 初始化项目 (只需要在项目刚开始执行一次)
